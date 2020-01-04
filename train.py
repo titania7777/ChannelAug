@@ -15,7 +15,7 @@ import torch.nn.functional as F
 from torchvision import datasets
 from torchvision import transforms
 
-from ChannelSplit import ChannelSplit, ChannelSplit2, ChannelMix
+from ChannelAug import ChannelSplit, ChannelSplit2, ChannelMix
 from matplotlib import pyplot as plt
 from utils import nentr
 

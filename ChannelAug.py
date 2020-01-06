@@ -78,7 +78,7 @@ class ChannelSplit2():
         return result
 
 class ChannelMix():
-    def __init__(self, skip=False, sum=False, prob=0.5, beta=10, width=3):
+    def __init__(self, skip=False, sum=False, prob=0.7, beta=4, width=3):
         #self.res = res
         #self.choice = choice
         self.skip = skip
@@ -86,14 +86,15 @@ class ChannelMix():
         self.prob = prob
         self.beta = beta
         self.width = width
-
-    def __call__(self, img):
-        #H, W, C
         normalize = transforms.Normalize(mean=[x / 255.0 for x in [125.3, 123.0, 113.9]], std=[x / 255.0 for x in [63.0, 62.1, 66.7]])
         preprocess = transforms.Compose([
             transforms.ToTensor(),
             normalize
         ])
+        self.preprocess = preprocess
+
+    def __call__(self, img):
+        #H, W, C
         if random.random() < self.prob:
             if random.random() < 0.5:
                 self.res = 'x64'
@@ -107,7 +108,7 @@ class ChannelMix():
             #B, H, W, C
             dirichlet = np.float32(np.random.dirichlet([1] * self.width))
             beta = np.float32(np.random.beta(self.beta, 1))
-            mix = torch.zeros_like(preprocess(img))
+            mix = torch.zeros_like(self.preprocess(img))
             #H, W, C
             for i in range(self.width):
                 step = int(self.choice / self.width)
@@ -115,8 +116,8 @@ class ChannelMix():
                 mixed = _img[np.random.choice(np.arange(0, _img.shape[0]), rand, replace=False)]
                 mixed = mixed.sum(axis=0)
                 mixed = Image.fromarray(mixed.astype(np.uint8))
-                mix += dirichlet[i] * preprocess(mixed)
-            img = (beta * preprocess(img) + (1 - beta) * mix)
+                mix += dirichlet[i] * self.preprocess(mixed)
+            img = (beta * self.preprocess(img) + (1 - beta) * mix)
         else:
-            img = preprocess(img)
+            img = self.preprocess(img)
         return img

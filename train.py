@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import argparse
 import time
+import numpy as np
 
 from models.cifar.allconv import AllConvNet
 from third_party.ResNeXt_DenseNet.models.densenet import densenet
@@ -15,7 +16,7 @@ import torch.nn.functional as F
 from torchvision import datasets
 from torchvision import transforms
 
-from ChannelSplit import ChannelSplit, ChannelSplit2, ChannelMix
+from ChannelAug import ChannelSplit, ChannelSplit2, ChannelMix
 from matplotlib import pyplot as plt
 from utils import nentr
 
@@ -97,23 +98,23 @@ parser.add_argument('--num-workers', type=int, default=4, help='Number of pre-fe
 args = parser.parse_args()
 
 def train(model, train_loader, optimizer, scheduler):
-  model.train()
-  loss_ema = 0.
-  for i, (images, targets) in enumerate(train_loader):
-    optimizer.zero_grad()
-    images = images.cuda()
-    targets = targets.cuda()
-    logits = model(images)
-    loss = F.cross_entropy(logits, targets)
+    model.train()
+    loss_ema = 0.
+    for i, (images, targets) in enumerate(train_loader):
+      optimizer.zero_grad()
+      images = images.cuda()
+      targets = targets.cuda()
+      logits = model(images)
+      loss = F.cross_entropy(logits, targets)
+      
+      loss.backward()
+      optimizer.step()
+      scheduler.step()
+      loss_ema = loss_ema * 0.1 + float(loss) * 0.9
+      if i % args.print_freq == 0:
+          print('Train Loss {:.3f}'.format(loss_ema))
+    return loss_ema
 
-    loss.backward()
-    optimizer.step()
-    scheduler.step()
-    loss_ema = loss_ema * 0.1 + float(loss) * 0.9
-    if i % args.print_freq == 0:
-      print('Train Loss {:.3f}'.format(loss_ema))
-
-  return loss_ema
 # Code From https://github.com/mlaves/bayesian-temperature-scaling
 def plot_conf(acc, conf):
     fig, ax = plt.subplots(1, 1, figsize=(2.5*2, 2.25*2))
@@ -139,98 +140,94 @@ def plot_uncert(err, entr):
     return fig, ax
 # Code From https://github.com/mlaves/bayesian-temperature-scaling
 def calibration(model, test_loader, save=False, title=''):
-  logits = []
-  labels = []
-  with torch.no_grad():
-    for images, targets in test_loader:
-      images, targets = images.cuda(), targets.cuda()
-      output = model(images)
-      logits.append(torch.softmax(output, dim=1).detach())
-      labels.append(targets.detach())
-    logits = torch.cat(logits, dim=0)
-    labels = torch.cat(labels, dim=0)
-    ece, acc, conf = eceloss(logits, labels)
-    uce, err, entr = uceloss(logits, labels)
-    print('Test ECE : {:.2f}, UCE : {:.2f}'.format(ece.item()*100, uce.item()*100))
-
+    logits = []
+    labels = []
+    with torch.no_grad():
+        for images, targets in test_loader:
+            images, targets = images.cuda(), targets.cuda()
+            output = model(images)
+            logits.append(torch.softmax(output, dim=1).detach())
+            labels.append(targets.detach())
+        logits = torch.cat(logits, dim=0)
+        labels = torch.cat(labels, dim=0)
+        ece, acc, conf = eceloss(logits, labels)
+        uce, err, entr = uceloss(logits, labels)
+        print('Test ECE : {:.2f}, UCE : {:.2f}'.format(ece.item()*100, uce.item()*100))
+        
     if save:
-      fig1, ax1 = plot_conf(acc, conf)
-      fig2, ax2 = plot_uncert(err, entr)
+        fig1, ax1 = plot_conf(acc, conf)
+        fig2, ax2 = plot_uncert(err, entr)
+        
+        textstr1 = r'ECE={:.2f}'.format(ece.item()*100)
+        props = dict(boxstyle='round', facecolor='white', alpha=0.75)
+        ax1.text(0.075, 0.925, textstr1, transform=ax1.transAxes, fontsize=14,
+            verticalalignment='top',
+            horizontalalignment='left',
+            bbox=props)
+        ax1.set_title(title.replace('_', ' '), fontsize=16)
+        fig1.tight_layout()
+        fig1.savefig('ECE/' + title + '_ECE.png')
 
-      textstr1 = r'ECE={:.2f}'.format(ece.item()*100)
-      props = dict(boxstyle='round', facecolor='white', alpha=0.75)
-      ax1.text(0.075, 0.925, textstr1, transform=ax1.transAxes, fontsize=14,
-              verticalalignment='top',
-              horizontalalignment='left',
-              bbox=props
-              )
-      ax1.set_title(title.replace('_', ' '), fontsize=16)
-      fig1.tight_layout()
-      fig1.savefig('ECE/' + title + '_ECE.png')
-
-      textstr2 = r'UCE={:.2f}'.format(uce.item()*100)
-      ax2.text(0.925, 0.075, textstr2, transform=ax2.transAxes, fontsize=14,
-              verticalalignment='bottom',
-              horizontalalignment='right',
-              bbox=props
-              )
-      ax2.set_title(title.replace('_', ' '), fontsize=16)
-      fig2.tight_layout()
-      fig2.savefig('UCE/' + title + '_UCE.png')
+        textstr2 = r'UCE={:.2f}'.format(uce.item()*100)
+        ax2.text(0.925, 0.075, textstr2, transform=ax2.transAxes, fontsize=14,
+            verticalalignment='bottom',
+            horizontalalignment='right',
+            bbox=props)
+        ax2.set_title(title.replace('_', ' '), fontsize=16)
+        fig2.tight_layout()
+        fig2.savefig('UCE/' + title + '_UCE.png')
 
 def get_lr(step, total_steps, lr_max, lr_min):
-  return lr_min + (lr_max - lr_min) * 0.5 * (1 + np.cos(step / total_steps * np.pi))
+    return lr_min + (lr_max - lr_min) * 0.5 * (1 + np.cos(step / total_steps * np.pi))
 
 def test(model, test_loader):
-  model.eval()
-  total_loss = 0.
-  total_correct = 0
-  with torch.no_grad():
-    for images, targets in test_loader:
-      images, targets = images.cuda(), targets.cuda()
-      logits = model(images)
-      loss = F.cross_entropy(logits, targets)
-      pred = logits.data.max(1)[1]
-      total_loss += float(loss.data)
-      total_correct += pred.eq(targets.data).sum().item()
-  return total_loss / len(test_loader.dataset), total_correct / len(test_loader.dataset)
+    model.eval()
+    total_loss = 0.
+    total_correct = 0
+    with torch.no_grad():
+        for images, targets in test_loader:
+            images, targets = images.cuda(), targets.cuda()
+            logits = model(images)
+            loss = F.cross_entropy(logits, targets)
+            pred = logits.data.max(1)[1]
+            total_loss += float(loss.data)
+            total_correct += pred.eq(targets.data).sum().item()
+    return total_loss / len(test_loader.dataset), total_correct / len(test_loader.dataset)
 
 def test_c(net, test_data, base_path):
-  corruption_accs = []
-  ece_c = 0
-  uce_c = 0
-  for corruption in CORRUPTIONS:
-    # Reference to original data is mutated
-    test_data.data = np.load(base_path + corruption + '.npy')
-    test_data.targets = torch.LongTensor(np.load(base_path + 'labels.npy'))
+    corruption_accs = []
+    ece_c = 0
+    uce_c = 0
+    for corruption in CORRUPTIONS:
+        # Reference to original data is mutated
+        test_data.data = np.load(base_path + corruption + '.npy')
+        test_data.targets = torch.LongTensor(np.load(base_path + 'labels.npy'))
+        test_loader = torch.utils.data.DataLoader(
+            test_data,
+            batch_size=args.eval_batch_size,
+            shuffle=False,
+            num_workers=args.num_workers,
+            pin_memory=True)
 
-    test_loader = torch.utils.data.DataLoader(
-        test_data,
-        batch_size=args.eval_batch_size,
-        shuffle=False,
-        num_workers=args.num_workers,
-        pin_memory=True)
-
-    ece, uce, test_loss, test_acc = test(net, test_loader, True)
-    corruption_accs.append(test_acc)
-
-    ece_c += ece.item()*100
-    uce_c += uce.item()*100
-
-    print('{}: Test Loss {:.3f} | Test Error {:.3f}'.format(corruption, test_loss, 100 - 100. * test_acc))
-  print('[Mean Corruption ECE : {:.2f}, UCE : {:.2f}]'.format(ece_c/15, uce_c/15))
-  return np.mean(corruption_accs)
+        ece, uce, test_loss, test_acc = test(net, test_loader, True)
+        corruption_accs.append(test_acc)
+        ece_c += ece.item()*100
+        uce_c += uce.item()*100
+        
+        print('{}: Test Loss {:.3f} | Test Error {:.3f}'.format(corruption, test_loss, 100 - 100. * test_acc))
+    print('[Mean Corruption ECE : {:.2f}, UCE : {:.2f}]'.format(ece_c/15, uce_c/15))
+    return np.mean(corruption_accs)
 
 
 def main():
     torch.manual_seed(7777)
     np.random.seed(7777)
-    
+
     normalize = transforms.Normalize(mean=[x / 255.0 for x in [125.3, 123.0, 113.9]], std=[x / 255.0 for x in [63.0, 62.1, 66.7]])
     transform_train = transforms.Compose([
         transforms.RandomCrop(32, padding=4),
         transforms.RandomHorizontalFlip(),
-        ChannelMix(),
+        ChannelMix(skip=False, sum=False, prob=0.7, beta=5, width=3),
     ])
     transform_test = transforms.Compose([
         transforms.ToTensor(),
@@ -260,8 +257,7 @@ def main():
         base_c_path = './data/cifar/CIFAR-10-C/'
         num_classes = 10
 
-
-    #model
+    #models
     if args.model == 'densenet':
         model = densenet(num_classes=num_classes)
     elif args.model == 'wrn':
@@ -286,4 +282,4 @@ def main():
     print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
 
 if __name__ == '__main__':
-  main()
+    main()

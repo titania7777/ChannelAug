@@ -14,17 +14,20 @@ We propose a new data augmentation technique by separating the RGB channels of t
 ## Usage
 
 Wide ResNet: `python train.py`
+
 ResNeXt: `python train.py -m resnext`
+
 DenseNet: `python train.py -m densenet`
+
 AllConv: `python train.py -m allconv`
 
 ## Download CIFAR C for Experiments
-    ```
+
     CIFAR-10-C: https://zenodo.org/record/2535967/files/CIFAR-10-C.tar
     CIFAR-100-C: https://zenodo.org/record/3555552/files/CIFAR-100-C.tar
     Default Path => ./data/cifar/CIFAR-10-C or ./data/cifar/CIFAR-100-C
     *you can change the corruption images path use "--corruption_path" option.
-    ```
+
 ## Citation
 
 todo

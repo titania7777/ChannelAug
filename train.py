@@ -87,14 +87,15 @@ def eceloss(softmaxes, labels, n_bins=15):
 
 parser = argparse.ArgumentParser(description='Trains a CIFAR Classifier', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100'], help='Choose between CIFAR-10, CIFAR-100.')
-parser.add_argument('--model', '-m', type=str, default='wrn', choices=['wrn', 'allconv', 'densenet', 'resnext'], help='Choose architecture.')
-parser.add_argument('--epochs', '-e', type=int, default=500, help='Number of epochs to train.')
+parser.add_argument('--corruption_path', type=str, default='./data/cifar/', help='Corruption dataset path.')
+parser.add_argument('--model', '-m', type=str, default='wrn', choices=['wrn', 'allconv', 'densenet', 'resnext'], help='Choose models.')
+parser.add_argument('--epochs', '-e', type=int, default=500, help='Epochs.')
 parser.add_argument('--learning-rate', '-lr', type=float, default=0.1, help='Initial learning rate.')
 parser.add_argument('--batch-size', '-b', type=int, default=128, help='Batch size.')
 parser.add_argument('--momentum', type=float, default=0.9, help='Momentum.')
-parser.add_argument('--decay', '-wd', type=float, default=0.0005, help='Weight decay (L2 penalty).')
-parser.add_argument('--print-freq', type=int, default=50, help='Training loss print frequency (batches).')
-parser.add_argument('--num-workers', type=int, default=4, help='Number of pre-fetching threads.')
+parser.add_argument('--decay', '-wd', type=float, default=0.0005, help='Weight decay.')
+parser.add_argument('--print-freq', type=int, default=50, help='Training loss print frequency.')
+parser.add_argument('--num-workers', type=int, default=4, help='Number of worker threads.')
 args = parser.parse_args()
 
 def train(model, train_loader, optimizer, scheduler):
@@ -180,31 +181,52 @@ def calibration(model, test_loader, save=False, title=''):
 def get_lr(step, total_steps, lr_max, lr_min):
     return lr_min + (lr_max - lr_min) * 0.5 * (1 + np.cos(step / total_steps * np.pi))
 
-def test(model, test_loader):
+def test(model, test_loader, calibration=False,):
     model.eval()
     total_loss = 0.
     total_correct = 0
+    logits_ = []
+    labels_ = []
     with torch.no_grad():
         for images, targets in test_loader:
             images, targets = images.cuda(), targets.cuda()
             logits = model(images)
+
             loss = F.cross_entropy(logits, targets)
             pred = logits.data.max(1)[1]
             total_loss += float(loss.data)
             total_correct += pred.eq(targets.data).sum().item()
+
+        if calibration:
+            logits_.append(torch.softmax(logits, dim=1).detach())
+            labels_.append(targets.detach())
+        if calibration:
+            logits_ = torch.cat(logits_, dim=0)
+            labels_ = torch.cat(labels_, dim=0)
+            ece, acc, conf = eceloss(logits_, labels_)
+            uce, err, entr = uceloss(logits_, labels_)
+            return ece, uce, total_loss / len(test_loader.dataset), total_correct / len(test_loader.dataset)
     return total_loss / len(test_loader.dataset), total_correct / len(test_loader.dataset)
 
 def test_c(net, test_data, base_path):
     corruption_accs = []
     ece_c = 0
     uce_c = 0
+
+    CORRUPTIONS = [
+        'gaussian_noise', 'shot_noise', 'impulse_noise', 'defocus_blur',
+        'glass_blur', 'motion_blur', 'zoom_blur', 'snow', 'frost', 'fog',
+        'brightness', 'contrast', 'elastic_transform', 'pixelate',
+        'jpeg_compression'
+    ]
+
     for corruption in CORRUPTIONS:
         # Reference to original data is mutated
         test_data.data = np.load(base_path + corruption + '.npy')
         test_data.targets = torch.LongTensor(np.load(base_path + 'labels.npy'))
         test_loader = torch.utils.data.DataLoader(
             test_data,
-            batch_size=args.eval_batch_size,
+            batch_size=1000,
             shuffle=False,
             num_workers=args.num_workers,
             pin_memory=True)
@@ -214,7 +236,7 @@ def test_c(net, test_data, base_path):
         ece_c += ece.item()*100
         uce_c += uce.item()*100
         
-        print('{}: Test Loss {:.3f} | Test Error {:.3f}'.format(corruption, test_loss, 100 - 100. * test_acc))
+        print('{}: Test Loss {:.3f} | Test Error {:.3f} | ECE : {:.2f} | UCE : {:.2f}'.format(corruption, test_loss, 100 - 100. * test_acc, ece.item()*100, uce.item()*100))
     print('[Mean Corruption ECE : {:.2f}, UCE : {:.2f}]'.format(ece_c/15, uce_c/15))
     return np.mean(corruption_accs)
 
@@ -234,18 +256,7 @@ def main():
         normalize
     ])
 
-    if args.dataset == 'cifar100':
-        train_loader = torch.utils.data.DataLoader(
-            datasets.CIFAR100('./data/cifar', train=True, download=True, transform=transform_train),
-            batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=True)
-        test_loader = torch.utils.data.DataLoader(
-            datasets.CIFAR100('./data/cifar', train=False, transform=transform_test),
-            batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=True)
-        test_data = datasets.CIFAR10(
-            './data/cifar', train=False, transform=transform_test, download=True)
-        base_c_path = './data/cifar/CIFAR-100-C/'
-        num_classes = 100
-    elif args.dataset == 'cifar10':
+    if args.dataset == 'cifar10':
         train_loader = torch.utils.data.DataLoader(
             datasets.CIFAR10('./data/cifar', train=True, download=True, transform=transform_train),
             batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=True)
@@ -254,8 +265,19 @@ def main():
             batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=True)
         test_data = datasets.CIFAR10(
             './data/cifar', train=False, transform=transform_test, download=True)
-        base_c_path = './data/cifar/CIFAR-10-C/'
+        base_c_path = args.corruption_path + '/CIFAR-10-C/'
         num_classes = 10
+    elif args.dataset == 'cifar100':
+        train_loader = torch.utils.data.DataLoader(
+            datasets.CIFAR100('./data/cifar', train=True, download=True, transform=transform_train),
+            batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=True)
+        test_loader = torch.utils.data.DataLoader(
+            datasets.CIFAR100('./data/cifar', train=False, transform=transform_test),
+            batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers, pin_memory=True)
+        test_data = datasets.CIFAR10(
+            './data/cifar', train=False, transform=transform_test, download=True)
+        base_c_path = args.corruption_path + '/CIFAR-100-C/'
+        num_classes = 100
 
     #models
     if args.model == 'densenet':

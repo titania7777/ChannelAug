@@ -1,3 +1,6 @@
+/__pychache__
+/models/cifar/__pychache__
+/third_party/__pychache__
 /data
 /test
 test.py

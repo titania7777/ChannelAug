@@ -78,7 +78,7 @@ class ChannelSplit2():
         return result
 
 class ChannelMix():
-    def __init__(self, skip=False, sum=False, prob=0.7, beta=4, width=3):
+    def __init__(self, skip=False, sum=False, prob=0.7, beta=5, width=3):
         #self.res = res
         #self.choice = choice
         self.skip = skip

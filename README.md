@@ -26,6 +26,14 @@ DenseNet: `python train.py -m densenet`
     Default Path => ./data/cifar/CIFAR-10-C or ./data/cifar/CIFAR-100-C
     *you can change the corruption images path use "--corruption_path" option.
 
+## Results
+
+### Wide ResNet 500 Epochs CIFAR-10C Results
+<img align="center" src="figures/CIFAR-10Cmeans.PNG" width="750">
+
+### Wide ResNet 500 Epochs CIFAR-10C ECE and UCE
+<img align="center" src="figures/CIFAR-10CCalibration.PNG" width="750">
+
 ## Citation
 
 todo

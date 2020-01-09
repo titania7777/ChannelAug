@@ -246,7 +246,7 @@ def main():
     transform_train = transforms.Compose([
         transforms.RandomCrop(32, padding=4),
         transforms.RandomHorizontalFlip(),
-        ChannelMix(skip=False, sum=False, prob=0.7, beta=5, width=3),
+        ChannelMix(sum=False, prob=0.7, beta=5, width=3),
     ])
     transform_test = transforms.Compose([
         transforms.ToTensor(),

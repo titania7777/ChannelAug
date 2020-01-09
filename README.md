@@ -19,8 +19,6 @@ ResNeXt: `python train.py -m resnext`
 
 DenseNet: `python train.py -m densenet`
 
-AllConv: `python train.py -m allconv`
-
 ## Download CIFAR C for Experiments
 
     CIFAR-10-C: https://zenodo.org/record/2535967/files/CIFAR-10-C.tar
@@ -31,3 +29,7 @@ AllConv: `python train.py -m allconv`
 ## Citation
 
 todo
+
+## Contect
+
+titania7777@seoultech.ac.kr

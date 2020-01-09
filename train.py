@@ -4,10 +4,9 @@ import argparse
 import time
 import numpy as np
 
-from models.cifar.allconv import AllConvNet
-from third_party.ResNeXt_DenseNet.models.densenet import densenet
-from third_party.ResNeXt_DenseNet.models.resnext import resnext29
-from third_party.WideResNet_pytorch.wideresnet import WideResNet
+from models.ResNeXt_DenseNet.models.densenet import densenet
+from models.ResNeXt_DenseNet.models.resnext import resnext29
+from models.WideResNet_pytorch.wideresnet import WideResNet
 
 import torch
 import torch.nn as nn
@@ -191,21 +190,19 @@ def test(model, test_loader, calibration=False,):
         for images, targets in test_loader:
             images, targets = images.cuda(), targets.cuda()
             logits = model(images)
-
             loss = F.cross_entropy(logits, targets)
             pred = logits.data.max(1)[1]
             total_loss += float(loss.data)
             total_correct += pred.eq(targets.data).sum().item()
-
-        if calibration:
-            logits_.append(torch.softmax(logits, dim=1).detach())
-            labels_.append(targets.detach())
-        if calibration:
-            logits_ = torch.cat(logits_, dim=0)
-            labels_ = torch.cat(labels_, dim=0)
-            ece, acc, conf = eceloss(logits_, labels_)
-            uce, err, entr = uceloss(logits_, labels_)
-            return ece, uce, total_loss / len(test_loader.dataset), total_correct / len(test_loader.dataset)
+            if calibration:
+                logits_.append(torch.softmax(logits, dim=1).detach())
+                labels_.append(targets.detach())
+    if calibration:
+        logits_ = torch.cat(logits_, dim=0)
+        labels_ = torch.cat(labels_, dim=0)
+        ece, acc, conf = eceloss(logits_, labels_)
+        uce, err, entr = uceloss(logits_, labels_)
+        return ece, uce, total_loss / len(test_loader.dataset), total_correct / len(test_loader.dataset)
     return total_loss / len(test_loader.dataset), total_correct / len(test_loader.dataset)
 
 def test_c(net, test_data, base_path):
@@ -284,8 +281,6 @@ def main():
         model = densenet(num_classes=num_classes)
     elif args.model == 'wrn':
         model = WideResNet(40, num_classes, 2, 0.0)
-    elif args.model == 'allconv':
-        model = AllConvNet(num_classes)
     elif args.model == 'resnext':
         model = resnext29(num_classes=num_classes)
 

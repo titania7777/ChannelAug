@@ -6,7 +6,7 @@ import torchvision.transforms as transforms
 from PIL import Image
 #Resolution
 color_resolution = {'x1': 256, 'x8': 128, 'x64': 64, 'x512': 32}
-color_resolution_v2 = {'x1': 256, 'x2': 128, 'x4': 64, 'x8': 32, 'x16': 16}
+# color_resolution_v2 = {'x1': 256, 'x2': 128, 'x4': 64, 'x8': 32, 'x16': 16}
 
 class ChannelSplit():
     def __init__(self, res, choice, prob=0.5):
@@ -35,33 +35,33 @@ class ChannelSplit():
             result = np.transpose(result, (0, 2, 3, 1))
         return result
 
-class ChannelSplit2():
-    def __init__(self, res, choice, sum=True, prob=0.5):
-        self.res = res
-        self.choice = choice
-        self.sum = sum
-        self.prob = prob
-    def __call__(self, img):
-        if random.random() < self.prob:
-            img = self._color_global2(img, color_resolution_v2[self.res], choice=self.choice, sum=self.sum)
-        return img
-    def _color_global2(self, image, resolution=128, choice=2, sum=False):
-        image = np.array(image)
-        image = np.transpose(image, (2, 0, 1))
-        result = []
-        for c in range(int(255 / resolution) + 1):
-            result.append(np.multiply(image, (resolution * c <= image) & ((resolution * (c + 1) - 1) >= image)))
-        result = np.array(sample(result, choice))
+# class ChannelSplit2():
+#     def __init__(self, res, choice, sum=True, prob=0.5):
+#         self.res = res
+#         self.choice = choice
+#         self.sum = sum
+#         self.prob = prob
+#     def __call__(self, img):
+#         if random.random() < self.prob:
+#             img = self._color_global2(img, color_resolution_v2[self.res], choice=self.choice, sum=self.sum)
+#         return img
+#     def _color_global2(self, image, resolution=128, choice=2, sum=False):
+#         image = np.array(image)
+#         image = np.transpose(image, (2, 0, 1))
+#         result = []
+#         for c in range(int(255 / resolution) + 1):
+#             result.append(np.multiply(image, (resolution * c <= image) & ((resolution * (c + 1) - 1) >= image)))
+#         result = np.array(sample(result, choice))
 
-        if choice == 1:
-            result = np.transpose(np.squeeze(result, axis=0), (1, 2, 0))
-        else:
-            if sum:
-                result = result.sum(axis=0)
-                result = np.transpose(result, (1, 2, 0)).astype(np.uint8)
-            else:
-                result = np.transpose(result, (0, 2, 3, 1))
-        return result
+#         if choice == 1:
+#             result = np.transpose(np.squeeze(result, axis=0), (1, 2, 0))
+#         else:
+#             if sum:
+#                 result = result.sum(axis=0)
+#                 result = np.transpose(result, (1, 2, 0)).astype(np.uint8)
+#             else:
+#                 result = np.transpose(result, (0, 2, 3, 1))
+#         return result
 
 class ChannelMix():
     def __init__(self, sum=False, prob=0.7, beta=5, width=3):
@@ -79,14 +79,14 @@ class ChannelMix():
     def __call__(self, img):
         #H, W, C
         if random.random() < self.prob:
-            if random.random() < 0.5:
-                self.res = 'x64'
-                self.choice = 64
-                _img = ChannelSplit(res=self.res, choice=self.choice, prob=1.0)(img)
-            else:
-                self.res = 'x8'
-                self.choice = 8
-                _img = ChannelSplit2(res=self.res, choice=self.choice, sum=self.sum, prob=1.0)(img)
+            # if random.random() < 0.5:
+            self.res = 'x64'
+            self.choice = 64
+            _img = ChannelSplit(res=self.res, choice=self.choice, prob=1.0)(img)
+            # else:
+            #     self.res = 'x8'
+            #     self.choice = 8
+            #     _img = ChannelSplit2(res=self.res, choice=self.choice, sum=self.sum, prob=1.0)(img)
 
             #B, H, W, C
             dirichlet = np.float32(np.random.dirichlet([1] * self.width))

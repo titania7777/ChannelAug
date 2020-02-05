@@ -15,7 +15,7 @@ import torch.nn.functional as F
 from torchvision import datasets
 from torchvision import transforms
 
-from ChannelAug import ChannelSplit, ChannelSplit2, ChannelMix
+from ChannelAug import ChannelSplit, ChannelMix
 from matplotlib import pyplot as plt
 from utils import nentr
 
@@ -114,68 +114,6 @@ def train(model, train_loader, optimizer, scheduler):
       if i % args.print_freq == 0:
           print('Train Loss {:.3f}'.format(loss_ema))
     return loss_ema
-
-# Code From https://github.com/mlaves/bayesian-temperature-scaling
-def plot_conf(acc, conf):
-    fig, ax = plt.subplots(1, 1, figsize=(2.5*2, 2.25*2))
-    ax.plot([0,1], [0,1], 'k--')
-    ax.plot(conf.data.cpu().numpy(), acc.data.cpu().numpy(), marker='.')
-    ax.set_xlabel(r'confidence', fontsize=16)
-    ax.set_ylabel(r'accuracy', fontsize=16)
-    ax.set_xticks((np.arange(0, 1.1, step=0.2)))
-    ax.set_yticks((np.arange(0, 1.1, step=0.2)))
-
-    return fig, ax
-# Code From https://github.com/mlaves/bayesian-temperature-scaling
-def plot_uncert(err, entr):
-    fig, ax = plt.subplots(1, 1, figsize=(2.5*2, 2.25*2))
-    ax.plot([0,1], [0,1], 'k--') 
-    ax.plot(entr.data.cpu().numpy(), err.data.cpu().numpy(), marker='.')
-    ax.set_xticks((np.arange(0, 1.1, step=0.2)))
-    ax.set_ylabel(r'error', fontsize=16)
-    ax.set_xlabel(r'uncertainty', fontsize=16)
-    ax.set_xticks((np.arange(0, 1.1, step=0.2)))
-    ax.set_yticks((np.arange(0, 1.1, step=0.2)))
-
-    return fig, ax
-# Code From https://github.com/mlaves/bayesian-temperature-scaling
-def calibration(model, test_loader, save=False, title=''):
-    logits = []
-    labels = []
-    with torch.no_grad():
-        for images, targets in test_loader:
-            images, targets = images.cuda(), targets.cuda()
-            output = model(images)
-            logits.append(torch.softmax(output, dim=1).detach())
-            labels.append(targets.detach())
-        logits = torch.cat(logits, dim=0)
-        labels = torch.cat(labels, dim=0)
-        ece, acc, conf = eceloss(logits, labels)
-        uce, err, entr = uceloss(logits, labels)
-        print('Test ECE : {:.2f}, UCE : {:.2f}'.format(ece.item()*100, uce.item()*100))
-        
-    if save:
-        fig1, ax1 = plot_conf(acc, conf)
-        fig2, ax2 = plot_uncert(err, entr)
-        
-        textstr1 = r'ECE={:.2f}'.format(ece.item()*100)
-        props = dict(boxstyle='round', facecolor='white', alpha=0.75)
-        ax1.text(0.075, 0.925, textstr1, transform=ax1.transAxes, fontsize=14,
-            verticalalignment='top',
-            horizontalalignment='left',
-            bbox=props)
-        ax1.set_title(title.replace('_', ' '), fontsize=16)
-        fig1.tight_layout()
-        fig1.savefig('ECE/' + title + '_ECE.png')
-
-        textstr2 = r'UCE={:.2f}'.format(uce.item()*100)
-        ax2.text(0.925, 0.075, textstr2, transform=ax2.transAxes, fontsize=14,
-            verticalalignment='bottom',
-            horizontalalignment='right',
-            bbox=props)
-        ax2.set_title(title.replace('_', ' '), fontsize=16)
-        fig2.tight_layout()
-        fig2.savefig('UCE/' + title + '_UCE.png')
 
 def get_lr(step, total_steps, lr_max, lr_min):
     return lr_min + (lr_max - lr_min) * 0.5 * (1 + np.cos(step / total_steps * np.pi))
@@ -294,7 +232,6 @@ def main():
         train_loss_ema = train(model, train_loader, optimizer, scheduler)
         test_loss, test_acc = test(model, test_loader)
         print('Epoch {0:3d} | Time {1:5d} | Train Loss {2:.4f} | Test Loss {3:.3f} | Test Error {4:.2f}'.format((epoch + 1), int(time.time() - begin_time), train_loss_ema, test_loss, 100 - 100. * test_acc))
-    calibration(model, test_loader, True, args.dataset)
     test_c_acc = test_c(model, test_data, base_c_path)
     print('Mean Corruption Error: {:.3f}'.format(100 - 100. * test_c_acc))
 

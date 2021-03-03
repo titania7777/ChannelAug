@@ -1,4 +1,4 @@
-# ChannelAug
+# The original repository of ChannelAug
 불확실한 환경에서의 이미지 분류 성능 향상을 위한 Mix Channel Split 데이터 증강 기법
 
 ChannelAug: A New Approach to Data Augmentation for Improving Image Classification Performance in Uncertain Environments
@@ -9,35 +9,30 @@ ChannelAug: A New Approach to Data Augmentation for Improving Image Classificati
 We propose a new data augmentation method that works by separating the RGB channels of an image to improve image classification ability in uncertain environments. Many data augmentation methods, using technique such as flipping and cropping, have been used to improve the image classification ability of models. While these data augmentation methods have been effective in improving image classification, they have unperformed in uncertain conditions. To solve this problem, we propose the ChannelSplit that separates and reassembles the RGB channels of an image, along with the Mix ChannelSplit, that adopts the concept of MixUp to express more diversity. In this paper, the proposed ChannelSplit and Mix ChannelSplit are called ChannelAug because they only utilize channels and do not perform any other image operations. Also, we compare ChannelAug to other image augmentation methods to prove it enhances robustness and uncertainty measures on image classification.
 
 ## Requirements
-
 *   numpy>=1.15.0
 *   Pillow>=6.1.0
 *   torch==1.2.0
 *   torchvision==0.2.2
 
 ## Usage
-
 Wide ResNet: `python train.py`
 
 ResNeXt: `python train.py -m resnext`
 
 DenseNet: `python train.py -m densenet`
 
-## Download CIFAR C for Experiments
-
+## Download CIFAR-C for Experiments
     CIFAR-10-C: https://zenodo.org/record/2535967/files/CIFAR-10-C.tar
     CIFAR-100-C: https://zenodo.org/record/3555552/files/CIFAR-100-C.tar
     Default Path => ./data/cifar/CIFAR-10-C or ./data/cifar/CIFAR-100-C
-    *you can change the corruption images path use "--corruption_path" option.
+    *you can change the corruption images path by using the "--corruption_path" option.
 
 ## Results
-
-### Wide ResNet 500 Epochs CIFAR-10C Results
+### The Mean Errors of the Wide ResNet on CIFAR-10C
 <img align="center" src="figures/CIFAR-10Cmeans.PNG" width="750">
 
-### Wide ResNet 500 Epochs CIFAR-10C ECE and UCE
+### The ECE and UCE of the Wide ResNet on CIFAR-10C
 <img align="center" src="figures/CIFAR-10CCalibration.PNG" width="750">
 
-## Contect
-
-titania7777@seoultech.ac.kr or titania7777@gmail.com
+## Contact
+titania7777@gmail.com

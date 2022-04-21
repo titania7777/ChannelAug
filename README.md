@@ -34,5 +34,16 @@ DenseNet: `python train.py -m densenet`
 ### The ECE and UCE of the Wide ResNet on CIFAR-10C
 <img align="center" src="figures/CIFAR-10CCalibration.PNG" width="750">
 
-## Contact
-titania7777@gmail.com
+## Citation
+If you use this code in your work, please cite our work
+```bibtex
+@Article{ChannelAug2020,
+    author={Hyeok Yoon and Soohan Kang and Ji-Hyeong Han},
+    title={ChannelAug: A New Approach to Data Augmentation for Improving Image Classification Performance in Uncertain Environments},
+    journal={Journal of KIISE},
+    year={2020},
+    volume={47},
+    pages={568-576},
+    doi={10.5626/JOK.2020.47.6.568},
+}
+```
